@@ -47,7 +47,7 @@ create table if not exists public.hs_expenses (
   trip_id       uuid not null references public.hs_trips (id) on delete cascade,
   title         text not null check (char_length(title) between 1 and 60),
   amount_paise  bigint not null check (amount_paise > 0 and amount_paise <= 100000000), -- up to Rs 10 lakh
-  paid_by       uuid not null references public.hs_members (id) on delete restrict,
+  paid_by       uuid not null references public.hs_members (id),
   created_by    uuid references public.hs_members (id) on delete set null,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
@@ -59,7 +59,7 @@ create index if not exists hs_expenses_created_by_idx on public.hs_expenses (cre
 -- Who an expense is split between (equal split, paise-exact on the client).
 create table if not exists public.hs_expense_shares (
   expense_id  uuid not null references public.hs_expenses (id) on delete cascade,
-  member_id   uuid not null references public.hs_members (id) on delete restrict,
+  member_id   uuid not null references public.hs_members (id),
   primary key (expense_id, member_id)
 );
 create index if not exists hs_expense_shares_member_idx on public.hs_expense_shares (member_id);
@@ -68,8 +68,8 @@ create index if not exists hs_expense_shares_member_idx on public.hs_expense_sha
 create table if not exists public.hs_payments (
   id            uuid primary key default gen_random_uuid(),
   trip_id       uuid not null references public.hs_trips (id) on delete cascade,
-  from_member   uuid not null references public.hs_members (id) on delete restrict,
-  to_member     uuid not null references public.hs_members (id) on delete restrict,
+  from_member   uuid not null references public.hs_members (id),
+  to_member     uuid not null references public.hs_members (id),
   amount_paise  bigint not null check (amount_paise > 0 and amount_paise <= 1000000000),
   created_at    timestamptz not null default now(),
   check (from_member <> to_member)
@@ -77,6 +77,31 @@ create table if not exists public.hs_payments (
 create index if not exists hs_payments_trip_idx on public.hs_payments (trip_id, created_at);
 create index if not exists hs_payments_from_idx on public.hs_payments (from_member);
 create index if not exists hs_payments_to_idx on public.hs_payments (to_member);
+
+-- Member references are NO ACTION (checked at the end of the statement), so deleting a
+-- trip cascades cleanly, while deleting a member who still has money on the trip fails.
+-- Upgrades databases created by the first version of this file, which used RESTRICT.
+do $$
+declare
+  c record;
+begin
+  for c in
+    select con.conname, cls.relname, att.attname
+    from pg_constraint con
+    join pg_class cls on cls.oid = con.conrelid
+    join pg_namespace ns on ns.oid = cls.relnamespace
+    join pg_attribute att on att.attrelid = con.conrelid and att.attnum = con.conkey[1]
+    where ns.nspname = 'public'
+      and con.contype = 'f'
+      and con.confrelid = 'public.hs_members'::regclass
+      and con.confdeltype = 'r'
+      and cls.relname in ('hs_expenses', 'hs_expense_shares', 'hs_payments')
+  loop
+    execute format('alter table public.%I drop constraint %I', c.relname, c.conname);
+    execute format('alter table public.%I add constraint %I foreign key (%I) references public.hs_members (id)',
+                   c.relname, c.conname, c.attname);
+  end loop;
+end $$;
 
 -- Lock the tables: RLS on, no policies, no grants to the API roles.
 alter table public.hs_trips          enable row level security;

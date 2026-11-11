@@ -134,11 +134,18 @@ async function afterWrite(result) {
   return data;
 }
 
-// Re-render read-only screens when someone else changes the trip.
+// Re-render read-only screens when someone else changes the trip. If a sheet is
+// open (someone is typing their UPI ID), wait until it closes.
+let remotePending = false;
 function onRemoteChange() {
   const r = parseRoute();
   if (r.token !== session.token) return;
-  if (r.view === 'trip' || r.view === 'settle') render({ keepScroll: true });
+  if (r.view !== 'trip' && r.view !== 'settle') return;
+  if ($('#sheet')?.open) {
+    remotePending = true;
+    return;
+  }
+  render({ keepScroll: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -189,9 +196,11 @@ async function render({ keepScroll = false } = {}) {
       return;
     }
   } else if (!keepScroll) {
+    // Show the cached copy now; repaint only if the server has something newer.
+    const before = session.data.trip.version;
     refresh()
-      .then(() => {
-        if (seq === renderSeq && (route.view === 'trip' || route.view === 'settle')) render({ keepScroll: true });
+      .then((fresh) => {
+        if (seq === renderSeq && fresh && fresh.trip.version !== before) onRemoteChange();
       })
       .catch((err) => {
         if (err instanceof ApiError && err.code === 'trip_not_found' && seq === renderSeq) paint(errorScreen(err, route.token));
@@ -231,6 +240,7 @@ window.addEventListener('hashchange', () => {
 // Shared pieces
 // ---------------------------------------------------------------------------
 const AVATAR_TINTS = 6;
+const expandedTrips = new Set();
 const initials = (name) => {
   const words = String(name).trim().split(/\s+/);
   const first = [...words[0]][0] || '?';
@@ -478,8 +488,18 @@ function tripScreen(token, data, me) {
         ${rule()}`
       : '';
 
+  const FOLD = 5;
+  const expanded = expandedTrips.has(token) || data.expenses.length <= FOLD + 1;
+  const shown = expanded ? data.expenses : data.expenses.slice(0, FOLD);
+  const more =
+    data.expenses.length > FOLD + 1
+      ? `<button class="ex-more" type="button" data-more aria-expanded="${expanded}">
+          <span>${expanded ? 'Newest first' : `All ${data.expenses.length} expenses`}</span><span class="leader"></span>
+          <span class="ex-more-act">${expanded ? 'show fewer' : `${data.expenses.length - FOLD} more`}${icon('chevron', { size: 18 })}</span>
+        </button>`
+      : '';
   const items = data.expenses.length
-    ? `<ul class="expenses">${data.expenses
+    ? `<ul class="expenses">${shown
         .map((e) => {
           const payer = byId.get(e.paid_by);
           const k = e.split.length;
@@ -498,7 +518,9 @@ function tripScreen(token, data, me) {
             ${icon('chevron', { size: 20, cls: 'ex-chev' })}
           </a></li>`;
         })
-        .join('')}</ul>`
+        .join('')}</ul>
+      ${more}
+      <p class="total"><span class="total-label">TOTAL</span><span class="leader"></span><span>${rupees(total)}</span></p>`
     : `<div class="empty">
         <p class="empty-title">Nothing on the bill yet.</p>
         <p class="hint">Add the first one. The train tickets, probably.</p>
@@ -531,6 +553,11 @@ function tripScreen(token, data, me) {
       $('[data-menu]', root)?.addEventListener('click', () => tripMenu(token, data, me));
       $('[data-people]', root)?.addEventListener('click', () => peopleSheet(token, data, me));
       $('[data-share]', root)?.addEventListener('click', () => shareInvite(token, data.trip.name));
+      $('[data-more]', root)?.addEventListener('click', () => {
+        if (expandedTrips.has(token)) expandedTrips.delete(token);
+        else expandedTrips.add(token);
+        render({ keepScroll: true });
+      });
       $('[data-copy]', root)?.addEventListener('click', () => copyText(inviteUrl(token), 'Invite link copied.'));
       $('[data-dismiss-invite]', root)?.addEventListener('click', () => {
         rememberTrip(token, { fresh: false });
@@ -555,7 +582,7 @@ function expenseScreen(token, data, me, existing) {
   const payer = () => members.find((m) => m.id === state.paidBy) || me;
 
   return {
-    html: `${bar({ back: tripHash(token) })}
+    html: `${bar({ back: tripHash(token), menu: true })}
       ${rule()}
       <form class="exform" id="exform" novalidate>
         <section class="block">
@@ -599,14 +626,14 @@ function expenseScreen(token, data, me, existing) {
               )
               .join('')}
           </ul>
-          <p class="split-note" aria-live="polite"></p>
         </fieldset>
-        ${rule()}
         <section class="block save">
           <p class="form-error" role="alert" hidden></p>
-          <button class="plate" type="submit">${editing ? 'Save changes' : 'Save'}</button>
           ${editing ? `<button class="text-btn danger" type="button" data-delete>${icon('trash', { size: 18 })}<span>Delete expense</span></button>` : ''}
         </section>
+        <div class="dock dock-single">
+          <button class="plate" type="submit"><span class="save-label">Save</span></button>
+        </div>
       </form>`,
     focus: editing ? null : '.amount-input',
     bind(root) {
@@ -614,7 +641,8 @@ function expenseScreen(token, data, me, existing) {
       const amountInput = $('.amount-input', form);
       const select = $('.pill-select', form);
       const err = $('.form-error', form);
-      const note = $('.split-note', form);
+      const saveLabel = $('.save-label', form);
+      $('[data-menu]', root)?.addEventListener('click', () => tripMenu(token, data, me));
 
       const sizeAmount = () => {
         const len = Math.max(1, amountInput.value.length || 1);
@@ -631,12 +659,7 @@ function expenseScreen(token, data, me, existing) {
           cell.closest('.split-row').classList.toggle('is-off', !on);
         }
         const k = chosen.length;
-        note.textContent =
-          k === 0
-            ? 'Pick at least one person.'
-            : k === members.length
-              ? `Split equally, ${plural(k, 'way')}.`
-              : `Split equally between ${plural(k, 'person', 'people')}. The others don't pay for this one.`;
+        saveLabel.textContent = k === 0 ? 'Save' : k === 1 ? 'Save · for 1 person' : `Save · split ${k} ways`;
         sizeAmount();
       };
 
@@ -855,7 +878,21 @@ function settleScreen(token, data, me) {
       ${stub(data.trip.name)}`,
     bind(root) {
       $('[data-menu]', root)?.addEventListener('click', () => tripMenu(token, data, me));
-      if (showStamp && !reduceMotion()) $('.stamp', root)?.classList.add('slam');
+      // The stamp slams down when it scrolls into view, not off-screen at render.
+      const stampEl = $('.stamp', root);
+      if (stampEl && !reduceMotion() && 'IntersectionObserver' in window) {
+        stampEl.classList.add('pre-slam');
+        const io = new IntersectionObserver(
+          (entries) => {
+            if (entries.some((e) => e.isIntersecting)) {
+              stampEl.classList.replace('pre-slam', 'slam');
+              io.disconnect();
+            }
+          },
+          { threshold: 0.6 }
+        );
+        io.observe(stampEl);
+      }
       $$('.card', root).forEach((card) => {
         const t = transfers[Number(card.dataset.i)];
         const from = byId.get(t.from);
@@ -973,6 +1010,12 @@ function closeSheet() {
 }
 sheet.addEventListener('click', (ev) => {
   if (ev.target === sheet) closeSheet();
+});
+sheet.addEventListener('close', () => {
+  if (remotePending) {
+    remotePending = false;
+    setTimeout(onRemoteChange, 0);
+  }
 });
 
 function sheetHead(title) {
