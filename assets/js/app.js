@@ -232,6 +232,7 @@ function paint({ html, bind, focus }) {
 }
 
 window.addEventListener('hashchange', () => {
+  slammed.clear();
   render();
   window.scrollTo(0, 0);
 });
@@ -241,6 +242,7 @@ window.addEventListener('hashchange', () => {
 // ---------------------------------------------------------------------------
 const AVATAR_TINTS = 6;
 const expandedTrips = new Set();
+const slammed = new Set();
 const initials = (name) => {
   const words = String(name).trim().split(/\s+/);
   const first = [...words[0]][0] || '?';
@@ -877,12 +879,14 @@ function settleScreen(token, data, me) {
     bind(root) {
       $('[data-menu]', root)?.addEventListener('click', () => tripMenu(token, data, me));
       // The stamp slams down when it scrolls into view, not off-screen at render.
+      // Once per visit: live repaints and mark-as-paid don't slam it again.
       const stampEl = $('.stamp', root);
-      if (stampEl && !reduceMotion() && 'IntersectionObserver' in window) {
+      if (stampEl && !slammed.has(token) && !reduceMotion() && 'IntersectionObserver' in window) {
         stampEl.classList.add('pre-slam');
         const io = new IntersectionObserver(
           (entries) => {
             if (entries.some((e) => e.isIntersecting)) {
+              slammed.add(token);
               stampEl.classList.replace('pre-slam', 'slam');
               io.disconnect();
             }

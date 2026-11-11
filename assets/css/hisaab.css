@@ -150,7 +150,7 @@ em { font-style: normal; color: var(--muted); font-weight: 400; }
   min-width: 18px;
   height: 3px;
   margin: 0 10px;
-  background: radial-gradient(circle, var(--dot) 0.95px, transparent 1.3px) 0 0 / 7px 3px repeat-x;
+  background: radial-gradient(circle, var(--dot) 0.95px, transparent 1.3px) right 0 / 7px 3px repeat-x;
 }
 
 /* ---------------------------------------------------------------------------
