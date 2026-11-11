@@ -1,0 +1,17 @@
+{
+  "name": "hisaab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Split a trip with friends and settle it in at most n-1 UPI payments. Static site + Supabase.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test",
+    "check:live": "node scripts/live-check.mjs",
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "serve": "npx --yes serve -l 5174 ."
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

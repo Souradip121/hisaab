@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Hisaab · split a trip, settle in UPI</title>
+  <meta name="description" content="Add what everyone paid on a trip. Hisaab settles it in at most one payment fewer than there are people, each one a UPI link with the amount filled in. No sign-up, open source.">
+  <meta name="theme-color" content="#e3e5e7">
+  <meta name="color-scheme" content="light">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Hisaab · split a trip, settle in UPI">
+  <meta property="og:description" content="Everyone adds what they paid. Settle the whole trip in a few UPI payments. No sign-up.">
+  <meta property="og:image" content="https://souradip121.github.io/hisaab/assets/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png">
+  <link rel="preload" href="assets/fonts/plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/plex-mono-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="modulepreload" href="assets/js/app.js">
+  <link rel="stylesheet" href="assets/css/hisaab.css">
+</head>
+<body>
+<!--
+  THESIS: A trip's money as the thermal till receipt it already is: printed lines, dotted leaders, a barcode, and a teal stamp for the answer. Refuses the fintech dashboard of cards, charts and gradients.
+  OWN-WORLD: Warm-grey thermal paper (#f0eeec) with fibre noise and torn zigzag edges on a pale desk; IBM Plex Mono only; near-black ink, dashed perforation rules, dotted price leaders; one teal ink (#0b786c) for switches, the swap icon and the rubber stamp; pastel initial discs; black rubber-plate buttons.
+  STORY: The group sees every rupee on one receipt, adds theirs in seconds, then settles with a handful of tap-to-pay UPI cards, at most n - 1.
+  FIRST VIEWPORT: Trip receipt: back / Hisaab / menu, dashed rule, trip name 34px bold, "6 friends · 23 expenses · ₹18,450", six avatar discs, your balance line, then the expense list; sticky Settle up + Add expense strip.
+  FORM: User-pinned direction "A · receipt" from builds/ui-concepts/hisaab (approved comp hisaab_a_receipt.png). No concept roll: the user picked it.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+-->
+  <main class="desk">
+    <article class="receipt" id="app" aria-label="Hisaab">
+      <noscript>
+        <div class="block"><p class="h2">Hisaab needs JavaScript to load your trip.</p></div>
+      </noscript>
+    </article>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog class="sheet" id="sheet" aria-label="Trip options"></dialog>
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

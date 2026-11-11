@@ -1,0 +1,12 @@
+# Design-process files and reel stills stay local
+.impeccable/
+screenshots/
+PRODUCT.md
+DESIGN.md
+DESIGN.json
+.claude/
+node_modules/
+.env
+.env.*
+*.log
+supabase/
