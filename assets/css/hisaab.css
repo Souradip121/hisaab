@@ -710,7 +710,7 @@ em { font-style: normal; color: var(--muted); font-weight: 400; }
   font-weight: 700;
   letter-spacing: 0.12em;
   transform: translate(-50%, -50%) rotate(-9deg);
-  background: rgba(240, 238, 236, 0.86);
+  background: rgba(244, 243, 240, 0.88);
   animation: stamp-in 0.34s cubic-bezier(0.2, 0.8, 0.25, 1) both;
 }
 
