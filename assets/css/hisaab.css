@@ -645,7 +645,7 @@ em { font-style: normal; color: var(--muted); font-weight: 400; }
 .switch:checked::before { transform: translateX(20px); }
 
 .save { display: grid; justify-items: center; padding-top: 6px; padding-bottom: 6px; }
-.save .form-error { justify-self: stretch; margin: 6px 0 4px; }
+.dock .form-error { margin: 0; padding: 8px 12px; font-size: 14px; background: var(--paper); }
 
 /* ---------------------------------------------------------------------------
    Settle up

@@ -627,11 +627,9 @@ function expenseScreen(token, data, me, existing) {
               .join('')}
           </ul>
         </fieldset>
-        <section class="block save">
-          <p class="form-error" role="alert" hidden></p>
-          ${editing ? `<button class="text-btn danger" type="button" data-delete>${icon('trash', { size: 18 })}<span>Delete expense</span></button>` : ''}
-        </section>
+        ${editing ? `<section class="block save"><button class="text-btn danger" type="button" data-delete>${icon('trash', { size: 18 })}<span>Delete expense</span></button></section>` : ''}
         <div class="dock dock-single">
+          <p class="form-error" role="alert" hidden></p>
           <button class="plate" type="submit"><span class="save-label">Save</span></button>
         </div>
       </form>`,
