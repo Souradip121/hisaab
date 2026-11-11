@@ -47,7 +47,7 @@ create table if not exists public.hs_expenses (
   trip_id       uuid not null references public.hs_trips (id) on delete cascade,
   title         text not null check (char_length(title) between 1 and 60),
   amount_paise  bigint not null check (amount_paise > 0 and amount_paise <= 100000000), -- up to Rs 10 lakh
-  paid_by       uuid not null references public.hs_members (id),
+  paid_by       uuid not null references public.hs_members (id) deferrable initially deferred,
   created_by    uuid references public.hs_members (id) on delete set null,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
@@ -59,7 +59,7 @@ create index if not exists hs_expenses_created_by_idx on public.hs_expenses (cre
 -- Who an expense is split between (equal split, paise-exact on the client).
 create table if not exists public.hs_expense_shares (
   expense_id  uuid not null references public.hs_expenses (id) on delete cascade,
-  member_id   uuid not null references public.hs_members (id),
+  member_id   uuid not null references public.hs_members (id) deferrable initially deferred,
   primary key (expense_id, member_id)
 );
 create index if not exists hs_expense_shares_member_idx on public.hs_expense_shares (member_id);
@@ -68,8 +68,8 @@ create index if not exists hs_expense_shares_member_idx on public.hs_expense_sha
 create table if not exists public.hs_payments (
   id            uuid primary key default gen_random_uuid(),
   trip_id       uuid not null references public.hs_trips (id) on delete cascade,
-  from_member   uuid not null references public.hs_members (id),
-  to_member     uuid not null references public.hs_members (id),
+  from_member   uuid not null references public.hs_members (id) deferrable initially deferred,
+  to_member     uuid not null references public.hs_members (id) deferrable initially deferred,
   amount_paise  bigint not null check (amount_paise > 0 and amount_paise <= 1000000000),
   created_at    timestamptz not null default now(),
   check (from_member <> to_member)
@@ -78,9 +78,9 @@ create index if not exists hs_payments_trip_idx on public.hs_payments (trip_id, 
 create index if not exists hs_payments_from_idx on public.hs_payments (from_member);
 create index if not exists hs_payments_to_idx on public.hs_payments (to_member);
 
--- Member references are NO ACTION (checked at the end of the statement), so deleting a
--- trip cascades cleanly, while deleting a member who still has money on the trip fails.
--- Upgrades databases created by the first version of this file, which used RESTRICT.
+-- Member references are checked at commit (deferred), so deleting a trip cascades
+-- cleanly, while deleting a member who still has money on the trip still fails.
+-- Upgrades databases created by earlier versions of this file (RESTRICT / immediate).
 do $$
 declare
   c record;
@@ -94,13 +94,22 @@ begin
     where ns.nspname = 'public'
       and con.contype = 'f'
       and con.confrelid = 'public.hs_members'::regclass
-      and con.confdeltype = 'r'
-      and cls.relname in ('hs_expenses', 'hs_expense_shares', 'hs_payments')
+      and (con.confdeltype = 'r' or not con.condeferred)
+      and (cls.relname, att.attname) in (('hs_expenses', 'paid_by'), ('hs_expense_shares', 'member_id'),
+                                         ('hs_payments', 'from_member'), ('hs_payments', 'to_member'))
   loop
     execute format('alter table public.%I drop constraint %I', c.relname, c.conname);
-    execute format('alter table public.%I add constraint %I foreign key (%I) references public.hs_members (id)',
+    execute format('alter table public.%I add constraint %I foreign key (%I) references public.hs_members (id) deferrable initially deferred',
                    c.relname, c.conname, c.attname);
   end loop;
+  -- created_by is only a note of who added an expense: it clears when that person is removed.
+  if exists (select 1 from pg_constraint
+             where conname = 'hs_expenses_created_by_fkey' and conrelid = 'public.hs_expenses'::regclass
+               and confdeltype <> 'n') then
+    alter table public.hs_expenses drop constraint hs_expenses_created_by_fkey;
+    alter table public.hs_expenses add constraint hs_expenses_created_by_fkey
+      foreign key (created_by) references public.hs_members (id) on delete set null;
+  end if;
 end $$;
 
 -- Lock the tables: RLS on, no policies, no grants to the API roles.
